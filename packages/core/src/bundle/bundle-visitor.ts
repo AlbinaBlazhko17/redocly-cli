@@ -126,6 +126,10 @@ export function makeBundleVisitor({
 }) {
   let components: Record<string, Record<string, unknown>>;
   let rootLocation: Location;
+  // Cache assigned component names by target pointer. The same component is hoisted
+  // once per reference; without this, getComponentName re-runs its collision scan
+  // (and dequal) on every repeat. Names are stable per target, so this is output-identical.
+  const componentNameByPointer = new Map<string, string>();
 
   const visitor: Oas3Visitor | Oas2Visitor = {
     ref: {
@@ -297,6 +301,11 @@ export function makeBundleVisitor({
     ctx: UserContext
   ) {
     const componentsGroup = components[componentType];
+    const cacheKey = `${componentType}::${target.location.absolutePointer}`;
+    const cachedName = componentNameByPointer.get(cacheKey);
+    if (cachedName !== undefined) {
+      return cachedName;
+    }
     const [fileRef, pointer] = [target.location.source.absoluteRef, target.location.pointer];
     let name = pointerBaseName(pointer) || refBaseName(fileRef);
 
@@ -315,6 +324,7 @@ export function makeBundleVisitor({
       });
     }
 
+    componentNameByPointer.set(cacheKey, name);
     return name;
   }
 
