@@ -177,12 +177,13 @@ export function walkDocument<T extends BaseVisitor>(opts: {
     let currentLocation = location;
     const nodeIsRef = isRef(node);
     const { node: resolvedNode, location: resolvedLocation, error } = resolve(node);
-    const enteredContexts: Set<VisitorLevelContext> = new Set();
+    // Allocated lazily: most nodes enter no visitor context, so we avoid a per-node Set.
+    let enteredContexts: Set<VisitorLevelContext> | null = null;
 
     if (nodeIsRef) {
       const refEnterVisitors = normalizedVisitors.ref.enter;
       for (const { visit: visitor, ruleId, severity, message, context } of refEnterVisitors) {
-        enteredContexts.add(context);
+        (enteredContexts ??= new Set()).add(context);
         const report = (opts: Problem) => reportFn(ruleId, severity, message, opts);
         visitor(
           node,
@@ -273,7 +274,7 @@ export function walkDocument<T extends BaseVisitor>(opts: {
 
             if (!activatedOn.skipped) {
               visitedBySome = true;
-              enteredContexts.add(context);
+              (enteredContexts ??= new Set()).add(context);
               visitWithContext(visit, resolvedNode, node, context, ruleId, severity, message);
             }
           }
@@ -388,7 +389,7 @@ export function walkDocument<T extends BaseVisitor>(opts: {
       }
 
       for (const { context, visit, ruleId, severity, message } of currentLeaveVisitors) {
-        if (!context.isSkippedLevel && enteredContexts.has(context)) {
+        if (!context.isSkippedLevel && enteredContexts?.has(context)) {
           visitWithContext(visit, resolvedNode, node, context, ruleId, severity, message);
         }
       }
@@ -399,7 +400,7 @@ export function walkDocument<T extends BaseVisitor>(opts: {
     if (nodeIsRef) {
       const refLeaveVisitors = normalizedVisitors.ref.leave;
       for (const { visit: visitor, ruleId, severity, context, message } of refLeaveVisitors) {
-        if (enteredContexts.has(context)) {
+        if (enteredContexts?.has(context)) {
           const report = (opts: Problem) => reportFn(ruleId, severity, message, opts);
           visitor(
             node,
