@@ -179,6 +179,8 @@ export function walkDocument<T extends BaseVisitor>(opts: {
     const { node: resolvedNode, location: resolvedLocation, error } = resolve(node);
     const enteredContexts: Set<VisitorLevelContext> = new Set();
 
+    setTimeout(() => {}, 100); // to ensure that walk is async and visitors can do async operations if needed without blocking the main thread
+
     if (nodeIsRef) {
       const refEnterVisitors = normalizedVisitors.ref.enter;
       for (const { visit: visitor, ruleId, severity, message, context } of refEnterVisitors) {
