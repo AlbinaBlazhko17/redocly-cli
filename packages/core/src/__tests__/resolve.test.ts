@@ -416,6 +416,63 @@ describe('collect refs', () => {
     const wrongCasePath = path.join(root, 'tmp', 'externalInfo.yaml');
     const tmpPath = path.join(root, 'tmp');
 
+    // `assertPathCasing` throws before `loadExternalRef` reaches lstat/readFile,
+    // so only the directory listing needs to be mocked here.
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath) => {
+      if (dirPath === root) return ['tmp'] as any;
+      if (dirPath === tmpPath) return ['externalinfo.yaml'] as any;
+      return [] as any;
+    });
+
+    await expect(new BaseResolver().loadExternalRef(wrongCasePath)).rejects.toThrow(
+      `ENOENT: no such file or directory '${wrongCasePath}'`
+    );
+  });
+
+  it('should resolve external refs when file path casing matches', async () => {
+    const { root } = path.parse(process.cwd());
+    const correctCasePath = path.join(root, 'tmp', 'externalInfo.yaml');
+    const tmpPath = path.join(root, 'tmp');
+
+    vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath) => {
+      if (dirPath === root) return ['tmp'] as any;
+      if (dirPath === tmpPath) return ['externalInfo.yaml'] as any;
+      return [] as any;
+    });
+    vi.spyOn(fs, 'lstatSync').mockReturnValue({ isDirectory: () => false } as any);
+    vi.spyOn(fs.promises, 'readFile').mockResolvedValue('openapi: 3.0.0' as any);
+
+    const source = await new BaseResolver().loadExternalRef(correctCasePath);
+
+    expect(source.body).toBe('openapi: 3.0.0');
+  });
+
+  it('should not rescan a directory already validated for a sibling ref', async () => {
+    const { root } = path.parse(process.cwd());
+    const tmpPath = path.join(root, 'tmp');
+
+    const readdirMock = vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath) => {
+      if (dirPath === root) return ['tmp'] as any;
+      if (dirPath === tmpPath) return ['a.yaml', 'b.yaml'] as any;
+      return [] as any;
+    });
+    vi.spyOn(fs, 'lstatSync').mockReturnValue({ isDirectory: () => false } as any);
+    vi.spyOn(fs.promises, 'readFile').mockResolvedValue('openapi: 3.0.0' as any);
+
+    const resolver = new BaseResolver();
+    await resolver.loadExternalRef(path.join(tmpPath, 'a.yaml'));
+    await resolver.loadExternalRef(path.join(tmpPath, 'b.yaml'));
+
+    // `root` and `tmp` are each scanned only once across both refs.
+    expect(readdirMock.mock.calls.filter(([dir]) => dir === root)).toHaveLength(1);
+    expect(readdirMock.mock.calls.filter(([dir]) => dir === tmpPath)).toHaveLength(1);
+  });
+
+  it('should reject external refs with mismatched file path casing', async () => {
+    const { root } = path.parse(process.cwd());
+    const wrongCasePath = path.join(root, 'tmp', 'externalInfo.yaml');
+    const tmpPath = path.join(root, 'tmp');
+
     const readdirMock = vi.spyOn(fs, 'readdirSync').mockImplementation((dirPath) => {
       if (dirPath === root) return ['tmp'] as any;
       if (dirPath === tmpPath) return ['externalinfo.yaml'] as any;

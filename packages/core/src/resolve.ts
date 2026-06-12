@@ -91,6 +91,7 @@ export function makeDocumentFromString<T = unknown>(
 
 export class BaseResolver {
   cache: Map<string, Promise<Document | ResolveError>> = new Map();
+  private dirListings: Map<string, Set<string>> = new Map();
 
   constructor(protected config: ResolveConfig = { http: { headers: [] } }) {}
 
@@ -116,7 +117,7 @@ export class BaseResolver {
         const { body, mimeType } = await readFileFromUrl(absoluteRef, this.config.http);
         return new Source(absoluteRef, body, mimeType);
       } else {
-        assertPathCasing(absoluteRef);
+        this.assertPathCasing(absoluteRef);
         if (fs.lstatSync(absoluteRef).isDirectory()) {
           throw new Error(`Expected a file but received a folder at ${absoluteRef}.`);
         }
@@ -127,6 +128,25 @@ export class BaseResolver {
     } catch (error) {
       error.message = error.message.replace(', lstat', '');
       throw new ResolveError(error);
+    }
+  }
+
+  private assertPathCasing(filePath: string): void {
+    const resolvedPath = path.resolve(filePath);
+    const { root } = path.parse(resolvedPath);
+    const parts = path.relative(root, resolvedPath).split(path.sep).filter(Boolean);
+    let currentPath = root;
+
+    for (const part of parts) {
+      let entries = this.dirListings.get(currentPath);
+      if (!entries) {
+        entries = new Set(fs.readdirSync(currentPath));
+        this.dirListings.set(currentPath, entries);
+      }
+      if (!entries.has(part)) {
+        throw new Error(`ENOENT: no such file or directory '${filePath}'`);
+      }
+      currentPath = path.join(currentPath, part);
     }
   }
 
@@ -169,20 +189,6 @@ export class BaseResolver {
     this.cache.set(absoluteRef, doc);
 
     return doc;
-  }
-}
-
-function assertPathCasing(filePath: string): void {
-  const resolvedPath = path.resolve(filePath);
-  const { root } = path.parse(resolvedPath);
-  const parts = path.relative(root, resolvedPath).split(path.sep).filter(Boolean);
-  let currentPath = root;
-
-  for (const part of parts) {
-    if (!fs.readdirSync(currentPath).includes(part)) {
-      throw new Error(`ENOENT: no such file or directory '${filePath}'`);
-    }
-    currentPath = path.join(currentPath, part);
   }
 }
 
