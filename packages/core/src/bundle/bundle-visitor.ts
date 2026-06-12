@@ -126,9 +126,6 @@ export function makeBundleVisitor({
 }) {
   let components: Record<string, Record<string, unknown>>;
   let rootLocation: Location;
-  // Cache assigned component names by target pointer. The same component is hoisted
-  // once per reference; without this, getComponentName re-runs its collision scan
-  // (and dequal) on every repeat. Names are stable per target, so this is output-identical.
   const componentNameByPointer = new Map<string, string>();
 
   const visitor: Oas3Visitor | Oas2Visitor = {
