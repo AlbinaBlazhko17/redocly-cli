@@ -1,5 +1,11 @@
 # @redocly/openapi-core
 
+## 2.33.1
+
+### Patch Changes
+
+- Improved AsyncAPI 3 types.
+
 ## 2.33.0
 
 ### Minor Changes
