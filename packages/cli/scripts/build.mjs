@@ -43,6 +43,11 @@ if (entryChunkInputs.some((inputPath) => inputPath.includes('node_modules/redoc'
     'redoc leaked into lib/index.js — check for stray static imports in build-docs commands'
   );
 }
+if (entryChunkInputs.some((inputPath) => inputPath.includes('/recheck/'))) {
+  throw new Error(
+    'the recheck engine leaked into lib/index.js — check for stray static imports in the recheck command'
+  );
+}
 
 const allInputs = Object.values(result.metafile.outputs).flatMap((chunk) =>
   Object.keys(chunk.inputs)
